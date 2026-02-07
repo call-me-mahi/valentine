@@ -23,8 +23,14 @@ const lovePageSchema = new mongoose.Schema({
     favoriteMemory: { type: String, required: true },
     message: { type: String, required: true },
 
-    // 🖼️ Media
-    photos: [{ type: String }],
+    // 🖼️ Media (IMPORTANT CHANGE)
+    photos: [
+        {
+            url: String,
+            publicId: String
+        }
+    ],
+
     music: { type: String, default: null },
 
     // 🎨 Theme

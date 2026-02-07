@@ -32,7 +32,12 @@ exports.uploadImages = async (req, res) => {
 
         for (const file of req.files) {
             const result = await uploadToCloudinary(file.buffer);
-            uploadedImages.push(result.secure_url);
+
+            // 🔥 STORE BOTH URL + publicId (IMPORTANT)
+            uploadedImages.push({
+                url: result.secure_url,
+                publicId: result.public_id
+            });
         }
 
         res.json({
@@ -83,7 +88,7 @@ exports.createLovePage = async (req, res) => {
             firstMeeting,
             favoriteMemory,
             message,
-            photos,
+            photos, // contains { url, publicId }
             music,
             theme,
             expiresAt
