@@ -16,10 +16,13 @@ connectDB();
 app.use("/api/love", require("./routes/loveRoutes"));
 app.use("/api/payment", require("./routes/paymentRoutes")); // 💳 Razorpay backend
 
-// Health check (optional but recommended)
+// Health check
 app.get("/", (req, res) => {
     res.send("❤️ Love Journey Backend is running");
 });
+
+// 🧹 Cron Jobs (AUTO DELETE EXPIRED PAGES)
+require("./cron/cleanupExpiredLovePages");
 
 // Server
 const PORT = process.env.PORT || 5000;
