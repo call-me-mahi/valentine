@@ -5,6 +5,12 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [showMessage, setShowMessage] = useState(false);
     const [lovePageId, setLovePageId] = useState(null);
+    const [copySuccess, setCopySuccess] = useState(false);
+
+    // Loading and error states
+    const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [paymentError, setPaymentError] = useState(null);
 
     const {
         yourName,
@@ -54,9 +60,51 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
     };
 
     /**
+     * Copy love page link to clipboard
+     */
+    const handleCopyLink = async () => {
+        if (!lovePageId) return;
+
+        const lovePageLink = `${window.location.origin}/love/${lovePageId}`;
+
+        try {
+            await navigator.clipboard.writeText(lovePageLink);
+            setCopySuccess(true);
+
+            // Reset copy feedback after 2 seconds
+            setTimeout(() => {
+                setCopySuccess(false);
+            }, 2000);
+        } catch (error) {
+            console.error('Failed to copy link:', error);
+            alert('Failed to copy link. Please copy it manually.');
+        }
+    };
+
+    /**
+     * Redirect to love page
+     */
+    const handleOpenLovePage = () => {
+        if (!lovePageId) return;
+
+        const lovePageLink = `${window.location.origin}/love/${lovePageId}`;
+        window.location.href = lovePageLink;
+    };
+
+    /**
      * Handle payment action - Create Razorpay order and open checkout
      */
     const handleProceedToPayment = async () => {
+        // Prevent duplicate calls
+        if (isCreatingOrder || isProcessingPayment) {
+            console.log('Payment already in progress');
+            return;
+        }
+
+        // Clear any previous errors
+        setPaymentError(null);
+        setIsCreatingOrder(true);
+
         try {
             // Step 1: Create order on backend
             const response = await fetch('http://localhost:5000/api/payment/create-order', {
@@ -70,11 +118,14 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to create order');
+                throw new Error('Failed to create order. Please try again.');
             }
 
             const orderData = await response.json();
             console.log('Order created:', orderData);
+
+            setIsCreatingOrder(false);
+            setIsProcessingPayment(true);
 
             // Step 2: Configure Razorpay options
             const razorpayOptions = {
@@ -106,7 +157,7 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                         });
 
                         if (!verifyResponse.ok) {
-                            throw new Error('Payment verification failed');
+                            throw new Error('Payment verification failed. Please contact support with payment ID: ' + response.razorpay_payment_id);
                         }
 
                         const verifyData = await verifyResponse.json();
@@ -122,25 +173,28 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                         });
 
                         if (!createLovePageResponse.ok) {
-                            throw new Error('Failed to create love page');
+                            throw new Error('Failed to create love page. Please contact support with payment ID: ' + response.razorpay_payment_id);
                         }
 
                         const lovePageData = await createLovePageResponse.json();
                         console.log('Love page created:', lovePageData);
 
-                        // Step 3: Store love page ID
+                        // Step 3: Store love page ID and show link UI
                         setLovePageId(lovePageData.id);
-
-                        alert(`Success! Your Love Journey has been created! ID: ${lovePageData.id}`);
+                        setIsProcessingPayment(false);
+                        console.log('Love page link:', `${window.location.origin}/love/${lovePageData.id}`);
 
                     } catch (error) {
                         console.error('Error in payment verification or love page creation:', error);
-                        alert('Payment was successful but we encountered an error. Please contact support with your payment ID: ' + response.razorpay_payment_id);
+                        setIsProcessingPayment(false);
+                        setPaymentError(error.message || 'Payment was successful but we encountered an error. Please contact support.');
                     }
                 },
                 modal: {
                     ondismiss: function () {
                         console.log('Payment cancelled by user');
+                        setIsProcessingPayment(false);
+                        setPaymentError('Payment was cancelled. Click "Proceed to Payment" to try again.');
                     }
                 }
             };
@@ -152,14 +206,18 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                 console.error('Payment failed:', response.error);
                 console.error('Error code:', response.error.code);
                 console.error('Error description:', response.error.description);
-                alert('Payment failed. Please try again.');
+
+                setIsProcessingPayment(false);
+                setPaymentError(`Payment failed: ${response.error.description}. Please try again.`);
             });
 
             razorpay.open();
 
         } catch (error) {
             console.error('Error during payment process:', error);
-            alert('Failed to initiate payment. Please try again.');
+            setIsCreatingOrder(false);
+            setIsProcessingPayment(false);
+            setPaymentError(error.message || 'Failed to initiate payment. Please check your connection and try again.');
         }
     };
 
@@ -286,18 +344,89 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                     </section>
                 )}
 
-                {/* Action Buttons */}
-                <div className="preview-actions">
-                    <button className="action-btn edit-btn" onClick={handleEdit}>
-                        ← Edit
-                    </button>
-                    <button
-                        className="action-btn payment-btn"
-                        onClick={handleProceedToPayment}
-                    >
-                        Proceed to Payment →
-                    </button>
-                </div>
+                {/* Link Generation Section - Shows after successful payment */}
+                {lovePageId && (
+                    <section className="story-section link-section">
+                        <div className="section-icon">🔗</div>
+                        <h3 className="section-title">Your Love Journey is Ready!</h3>
+                        <div className="section-content">
+                            <p className="success-message">
+                                🎉 Payment successful! Share this link with your loved one:
+                            </p>
+
+                            <div className="link-container">
+                                <input
+                                    type="text"
+                                    className="link-input"
+                                    value={`${window.location.origin}/love/${lovePageId}`}
+                                    readOnly
+                                />
+                            </div>
+
+                            <div className="link-actions">
+                                <button
+                                    className="link-btn copy-btn"
+                                    onClick={handleCopyLink}
+                                >
+                                    {copySuccess ? '✓ Link Copied!' : '📋 Copy Link'}
+                                </button>
+                                <button
+                                    className="link-btn open-btn"
+                                    onClick={handleOpenLovePage}
+                                >
+                                    💖 Open Love Page
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* Error Message Display */}
+                {paymentError && !lovePageId && (
+                    <div className="error-message-container">
+                        <div className="error-icon">⚠️</div>
+                        <p className="error-message">{paymentError}</p>
+                        <button
+                            className="retry-btn"
+                            onClick={() => setPaymentError(null)}
+                        >
+                            ✕ Dismiss
+                        </button>
+                    </div>
+                )}
+
+                {/* Loading State Display */}
+                {(isCreatingOrder || isProcessingPayment) && !lovePageId && (
+                    <div className="loading-container">
+                        <div className="loading-spinner"></div>
+                        <p className="loading-message">
+                            {isCreatingOrder && 'Creating order...'}
+                            {isProcessingPayment && 'Processing payment... Please wait'}
+                        </p>
+                    </div>
+                )}
+
+                {/* Action Buttons - Hide after payment successful */}
+                {!lovePageId && (
+                    <div className="preview-actions">
+                        <button
+                            className="action-btn edit-btn"
+                            onClick={handleEdit}
+                            disabled={isCreatingOrder || isProcessingPayment}
+                        >
+                            ← Edit
+                        </button>
+                        <button
+                            className="action-btn payment-btn"
+                            onClick={handleProceedToPayment}
+                            disabled={isCreatingOrder || isProcessingPayment}
+                        >
+                            {isCreatingOrder && '⏳ Creating Order...'}
+                            {isProcessingPayment && '⏳ Processing Payment...'}
+                            {!isCreatingOrder && !isProcessingPayment && 'Proceed to Payment →'}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
