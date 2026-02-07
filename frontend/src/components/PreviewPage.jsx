@@ -53,13 +53,70 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
     };
 
     /**
-     * Handle payment action
+     * Handle payment action - Create Razorpay order and open checkout
      */
-    const handleProceedToPaymentClick = () => {
-        if (onProceedToPayment) {
-            onProceedToPayment(formData);
-        } else {
-            console.log('Proceed to payment clicked with data:', formData);
+    const handleProceedToPayment = async () => {
+        try {
+            // Step 1: Create order on backend
+            const response = await fetch('http://localhost:5000/api/payment/create-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    amount: 199 // ₹199
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create order');
+            }
+
+            const orderData = await response.json();
+            console.log('Order created:', orderData);
+
+            // Step 2: Configure Razorpay options
+            const razorpayOptions = {
+                key: import.meta.env.VITE_RAZORPAY_KEY,
+                amount: orderData.amount, // Amount in paise
+                currency: orderData.currency,
+                order_id: orderData.id,
+                name: "Love Journey 💖",
+                description: "Unlock your love story",
+                theme: {
+                    color: "#FF1744" // Romantic pink-red
+                },
+                handler: function (response) {
+                    // Success callback
+                    console.log('Payment successful:', response);
+                    console.log('Razorpay Payment ID:', response.razorpay_payment_id);
+                    console.log('Razorpay Order ID:', response.razorpay_order_id);
+                    console.log('Razorpay Signature:', response.razorpay_signature);
+
+                    // TODO: Call verify API in next iteration
+                },
+                modal: {
+                    ondismiss: function () {
+                        console.log('Payment cancelled by user');
+                    }
+                }
+            };
+
+            // Step 3: Open Razorpay Checkout
+            const razorpay = new window.Razorpay(razorpayOptions);
+
+            razorpay.on('payment.failed', function (response) {
+                console.error('Payment failed:', response.error);
+                console.error('Error code:', response.error.code);
+                console.error('Error description:', response.error.description);
+                alert('Payment failed. Please try again.');
+            });
+
+            razorpay.open();
+
+        } catch (error) {
+            console.error('Error during payment process:', error);
+            alert('Failed to initiate payment. Please try again.');
         }
     };
 
@@ -193,7 +250,7 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                     </button>
                     <button
                         className="action-btn payment-btn"
-                        onClick={handleProceedToPaymentClick}
+                        onClick={handleProceedToPayment}
                     >
                         Proceed to Payment →
                     </button>
