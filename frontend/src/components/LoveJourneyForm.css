@@ -1,9 +1,39 @@
-/* Love Journey Form Styles */
+:root {
+  --color-primary: #3498db;
+  --color-primary-dark: #2980b9;
+  --color-success: #27ae60;
+  --color-success-dark: #229954;
+  --color-error: #e74c3c;
+  --color-error-dark: #c0392b;
+  --color-disabled: #95a5a6;
+  --color-text-primary: #333;
+  --color-text-secondary: #666;
+  --color-text-muted: #999;
+  --color-bg-light: #f8f9fa;
+  --color-border: #ddd;
+  --color-border-light: #e9ecef;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-xxl: 3rem;
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-width: 2px;
+  --font-size-base: 1rem;
+  --font-size-sm: 0.85rem;
+  --font-size-md: 0.95rem;
+  --font-size-lg: 1.1rem;
+  --font-size-xl: 2rem;
+  --transition-speed: 0.3s;
+  --max-width-form: 800px;
+}
 
 .love-journey-form-container {
-  max-width: 800px;
+  max-width: var(--max-width-form);
   margin: 0 auto;
-  padding: 2rem;
+  padding: var(--spacing-xl);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -11,41 +41,47 @@
 
 .form-header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: var(--spacing-xl);
 }
 
 .form-header h1 {
-  font-size: 2rem;
-  color: #333;
-  margin-bottom: 0.5rem;
+  font-size: var(--font-size-xl);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-sm);
 }
 
 .form-header p {
-  font-size: 1rem;
-  color: #666;
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
 }
 
 .love-journey-form {
   background: #fff;
-  padding: 2rem;
-  border-radius: 8px;
+  padding: var(--spacing-xl);
+  border-radius: var(--border-radius-md);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--spacing-lg);
 }
 
 .form-group label {
   display: block;
   font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: #333;
-  font-size: 0.95rem;
+  margin-bottom: var(--spacing-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
 }
 
 .required {
-  color: #e74c3c;
+  color: var(--color-error);
+}
+
+.file-hint {
+  font-size: var(--font-size-sm);
+  font-weight: normal;
+  color: var(--color-text-muted);
 }
 
 .form-group input[type="text"],
@@ -53,11 +89,11 @@
 .form-group textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 2px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-base);
   font-family: inherit;
-  transition: border-color 0.3s ease;
+  transition: border-color var(--transition-speed) ease;
   box-sizing: border-box;
 }
 
@@ -65,7 +101,7 @@
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #3498db;
+  border-color: var(--color-primary);
 }
 
 .form-group textarea {
@@ -74,29 +110,28 @@
 }
 
 .error-field {
-  border-color: #e74c3c !important;
+  border-color: var(--color-error) !important;
 }
 
 .error-message {
   display: block;
-  color: #e74c3c;
-  font-size: 0.85rem;
-  margin-top: 0.25rem;
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-xs);
   font-weight: 500;
 }
 
 .char-count {
   text-align: right;
-  font-size: 0.85rem;
-  color: #999;
-  margin-top: 0.25rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
 }
 
-/* Photo Upload Styles */
 .photo-upload-container {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--spacing-md);
 }
 
 .file-input {
@@ -106,28 +141,28 @@
 .file-input-label {
   display: inline-block;
   padding: 0.75rem 1.5rem;
-  background-color: #3498db;
+  background-color: var(--color-primary);
   color: white;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   cursor: pointer;
   font-weight: 600;
-  transition: background-color 0.3s ease;
+  transition: background-color var(--transition-speed) ease;
 }
 
 .file-input-label:hover {
-  background-color: #2980b9;
+  background-color: var(--color-primary-dark);
 }
 
 .file-count {
   font-size: 0.9rem;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 .photo-preview-list {
-  margin-top: 1rem;
+  margin-top: var(--spacing-md);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--spacing-sm);
 }
 
 .photo-preview-item {
@@ -135,14 +170,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.75rem;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-  border: 1px solid #e9ecef;
+  background-color: var(--color-bg-light);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-border-light);
 }
 
 .photo-name {
   font-size: 0.9rem;
-  color: #333;
+  color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -150,7 +185,7 @@
 }
 
 .remove-photo-btn {
-  background-color: #e74c3c;
+  background-color: var(--color-error);
   color: white;
   border: none;
   border-radius: 50%;
@@ -162,57 +197,55 @@
   cursor: pointer;
   font-size: 1.2rem;
   line-height: 1;
-  transition: background-color 0.3s ease;
+  transition: background-color var(--transition-speed) ease;
   flex-shrink: 0;
 }
 
 .remove-photo-btn:hover {
-  background-color: #c0392b;
+  background-color: var(--color-error-dark);
 }
 
-/* Submit Button Styles */
 .form-actions {
-  margin-top: 2rem;
+  margin-top: var(--spacing-xl);
   text-align: center;
 }
 
 .submit-btn {
-  padding: 1rem 3rem;
-  background-color: #27ae60;
+  padding: var(--spacing-md) var(--spacing-xxl);
+  background-color: var(--color-success);
   color: white;
   border: none;
-  border-radius: 4px;
-  font-size: 1.1rem;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-lg);
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.3s ease, opacity 0.3s ease;
+  transition: background-color var(--transition-speed) ease, opacity var(--transition-speed) ease;
 }
 
 .submit-btn:hover:not(:disabled) {
-  background-color: #229954;
+  background-color: var(--color-success-dark);
 }
 
 .submit-btn:disabled {
-  background-color: #95a5a6;
+  background-color: var(--color-disabled);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
 .form-hint {
-  margin-top: 1rem;
+  margin-top: var(--spacing-md);
   font-size: 0.9rem;
-  color: #e74c3c;
+  color: var(--color-error);
   font-weight: 500;
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
   .love-journey-form-container {
-    padding: 1rem;
+    padding: var(--spacing-md);
   }
 
   .love-journey-form {
-    padding: 1.5rem;
+    padding: var(--spacing-lg);
   }
 
   .form-header h1 {

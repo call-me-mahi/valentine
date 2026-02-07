@@ -1,16 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './PreviewPage.css';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY;
 
 const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [showMessage, setShowMessage] = useState(false);
     const [lovePageId, setLovePageId] = useState(null);
     const [copySuccess, setCopySuccess] = useState(false);
-
-    // Loading and error states
     const [isCreatingOrder, setIsCreatingOrder] = useState(false);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [paymentError, setPaymentError] = useState(null);
+
+    const copyTimeoutRef = useRef(null);
+    const isMountedRef = useRef(true);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+            if (copyTimeoutRef.current) {
+                clearTimeout(copyTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const {
         yourName,
@@ -22,46 +36,30 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
         theme = 'romantic'
     } = formData || {};
 
-    /**
-     * Navigate to next photo in carousel
-     */
     const handleNextPhoto = () => {
         if (photos.length > 0) {
             setCurrentPhotoIndex((prev) => (prev + 1) % photos.length);
         }
     };
 
-    /**
-     * Navigate to previous photo in carousel
-     */
     const handlePrevPhoto = () => {
         if (photos.length > 0) {
             setCurrentPhotoIndex((prev) => (prev - 1 + photos.length) % photos.length);
         }
     };
 
-    /**
-     * Reveal the love message
-     */
     const handleRevealMessage = () => {
         setShowMessage(true);
     };
 
-    /**
-     * Handle edit action
-     */
     const handleEdit = () => {
         if (onEdit) {
             onEdit();
         } else {
             console.log('Edit clicked - navigate back to form');
-            // Default: window.history.back() or navigation logic
         }
     };
 
-    /**
-     * Copy love page link to clipboard
-     */
     const handleCopyLink = async () => {
         if (!lovePageId) return;
 
@@ -71,9 +69,14 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
             await navigator.clipboard.writeText(lovePageLink);
             setCopySuccess(true);
 
-            // Reset copy feedback after 2 seconds
-            setTimeout(() => {
-                setCopySuccess(false);
+            if (copyTimeoutRef.current) {
+                clearTimeout(copyTimeoutRef.current);
+            }
+
+            copyTimeoutRef.current = setTimeout(() => {
+                if (isMountedRef.current) {
+                    setCopySuccess(false);
+                }
             }, 2000);
         } catch (error) {
             console.error('Failed to copy link:', error);
@@ -81,9 +84,6 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
         }
     };
 
-    /**
-     * Redirect to love page
-     */
     const handleOpenLovePage = () => {
         if (!lovePageId) return;
 
@@ -91,29 +91,33 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
         window.location.href = lovePageLink;
     };
 
-    /**
-     * Handle payment action - Create Razorpay order and open checkout
-     */
     const handleProceedToPayment = async () => {
-        // Prevent duplicate calls
         if (isCreatingOrder || isProcessingPayment) {
             console.log('Payment already in progress');
             return;
         }
 
-        // Clear any previous errors
+        if (!window.Razorpay) {
+            setPaymentError('Razorpay SDK not loaded. Please refresh the page and try again.');
+            return;
+        }
+
+        if (!RAZORPAY_KEY) {
+            setPaymentError('Payment gateway is not configured. Please contact support.');
+            return;
+        }
+
         setPaymentError(null);
         setIsCreatingOrder(true);
 
         try {
-            // Step 1: Create order on backend
-            const response = await fetch('http://localhost:5000/api/payment/create-order', {
+            const response = await fetch(`${API_BASE_URL}/api/payment/create-order`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    amount: 199 // ₹199
+                    amount: 199
                 })
             });
 
@@ -127,24 +131,21 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
             setIsCreatingOrder(false);
             setIsProcessingPayment(true);
 
-            // Step 2: Configure Razorpay options
             const razorpayOptions = {
-                key: import.meta.env.VITE_RAZORPAY_KEY,
-                amount: orderData.amount, // Amount in paise
+                key: RAZORPAY_KEY,
+                amount: orderData.amount,
                 currency: orderData.currency,
-                order_id: orderData.id,
+                order_id: orderData.orderId,
                 name: "Love Journey 💖",
                 description: "Unlock your love story",
                 theme: {
-                    color: "#FF1744" // Romantic pink-red
+                    color: "#FF1744"
                 },
                 handler: async function (response) {
-                    // Success callback - Payment captured by Razorpay
                     console.log('Payment successful:', response);
 
                     try {
-                        // Step 1: Verify payment signature on backend
-                        const verifyResponse = await fetch('http://localhost:5000/api/payment/verify', {
+                        const verifyResponse = await fetch(`${API_BASE_URL}/api/payment/verify`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -163,13 +164,25 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                         const verifyData = await verifyResponse.json();
                         console.log('Payment verified:', verifyData);
 
-                        // Step 2: Create love page after successful verification
-                        const createLovePageResponse = await fetch('http://localhost:5000/api/love/create', {
+                        const formDataToSend = new FormData();
+                        formDataToSend.append('yourGender', formData.yourGender);
+                        formDataToSend.append('yourName', formData.yourName);
+                        formDataToSend.append('partnerGender', formData.partnerGender);
+                        formDataToSend.append('partnerName', formData.partnerName);
+                        formDataToSend.append('firstMeeting', formData.firstMeeting);
+                        formDataToSend.append('favoriteMemory', formData.favoriteMemory);
+                        formDataToSend.append('message', formData.message);
+                        formDataToSend.append('theme', formData.theme);
+
+                        if (formData.photos && formData.photos.length > 0) {
+                            formData.photos.forEach((photo) => {
+                                formDataToSend.append('photos', photo);
+                            });
+                        }
+
+                        const createLovePageResponse = await fetch(`${API_BASE_URL}/api/love/create`, {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(formData)
+                            body: formDataToSend
                         });
 
                         if (!createLovePageResponse.ok) {
@@ -179,27 +192,31 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                         const lovePageData = await createLovePageResponse.json();
                         console.log('Love page created:', lovePageData);
 
-                        // Step 3: Store love page ID and show link UI
-                        setLovePageId(lovePageData.id);
-                        setIsProcessingPayment(false);
+                        if (isMountedRef.current) {
+                            setLovePageId(lovePageData.id);
+                            setIsProcessingPayment(false);
+                        }
                         console.log('Love page link:', `${window.location.origin}/love/${lovePageData.id}`);
 
                     } catch (error) {
                         console.error('Error in payment verification or love page creation:', error);
-                        setIsProcessingPayment(false);
-                        setPaymentError(error.message || 'Payment was successful but we encountered an error. Please contact support.');
+                        if (isMountedRef.current) {
+                            setIsProcessingPayment(false);
+                            setPaymentError(error.message || 'Payment was successful but we encountered an error. Please contact support.');
+                        }
                     }
                 },
                 modal: {
                     ondismiss: function () {
                         console.log('Payment cancelled by user');
-                        setIsProcessingPayment(false);
-                        setPaymentError('Payment was cancelled. Click "Proceed to Payment" to try again.');
+                        if (isMountedRef.current) {
+                            setIsProcessingPayment(false);
+                            setPaymentError('Payment was cancelled. Click "Proceed to Payment" to try again.');
+                        }
                     }
                 }
             };
 
-            // Step 3: Open Razorpay Checkout
             const razorpay = new window.Razorpay(razorpayOptions);
 
             razorpay.on('payment.failed', function (response) {
@@ -207,50 +224,48 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                 console.error('Error code:', response.error.code);
                 console.error('Error description:', response.error.description);
 
-                setIsProcessingPayment(false);
-                setPaymentError(`Payment failed: ${response.error.description}. Please try again.`);
+                if (isMountedRef.current) {
+                    setIsProcessingPayment(false);
+                    setPaymentError(`Payment failed: ${response.error.description}. Please try again.`);
+                }
             });
 
             razorpay.open();
 
         } catch (error) {
             console.error('Error during payment process:', error);
-            setIsCreatingOrder(false);
-            setIsProcessingPayment(false);
-            setPaymentError(error.message || 'Failed to initiate payment. Please check your connection and try again.');
+            if (isMountedRef.current) {
+                setIsCreatingOrder(false);
+                setIsProcessingPayment(false);
+                setPaymentError(error.message || 'Failed to initiate payment. Please check your connection and try again.');
+            }
         }
     };
 
-    /**
-     * Get photo URL for preview
-     */
     const getPhotoUrl = (photo) => {
         if (typeof photo === 'string') {
-            return photo; // Already a URL
+            return photo;
         }
         if (photo instanceof File) {
-            return URL.createObjectURL(photo); // Create preview URL
+            return URL.createObjectURL(photo);
         }
         return null;
     };
 
     return (
         <div className={`preview-page theme-${theme}`}>
-            {/* Payment Banner */}
             <div className="payment-banner">
                 🔒 This is only a preview. Complete payment to generate a shareable link.
             </div>
 
             <div className="preview-container">
 
-                {/* Header Section */}
                 <div className="preview-header">
                     <h1 className="preview-title">Someone special created this for you…</h1>
                     <h2 className="partner-name">{partnerName}</h2>
                     <p className="from-text">From: {yourName}</p>
                 </div>
 
-                {/* First Meeting Section */}
                 <section className="story-section first-meeting-section">
                     <div className="section-icon">💫</div>
                     <h3 className="section-title">How It All Began</h3>
@@ -259,7 +274,6 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                     </div>
                 </section>
 
-                {/* Favorite Memory Section */}
                 <section className="story-section favorite-memory-section">
                     <div className="section-icon">💝</div>
                     <h3 className="section-title">Our Favorite Memory</h3>
@@ -268,7 +282,6 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                     </div>
                 </section>
 
-                {/* Love Message Reveal Section */}
                 <section className="story-section message-section">
                     <div className="section-icon">💌</div>
                     <h3 className="section-title">A Special Message</h3>
@@ -277,6 +290,7 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                             <button
                                 className="reveal-button"
                                 onClick={handleRevealMessage}
+                                aria-label="Click to reveal special message"
                             >
                                 Click to Reveal Message ❤️
                             </button>
@@ -288,7 +302,6 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                     </div>
                 </section>
 
-                {/* Photo Slideshow Section */}
                 {photos.length > 0 && (
                     <section className="story-section photo-section">
                         <div className="section-icon">📸</div>
@@ -344,7 +357,6 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                     </section>
                 )}
 
-                {/* Link Generation Section - Shows after successful payment */}
                 {lovePageId && (
                     <section className="story-section link-section">
                         <div className="section-icon">🔗</div>
@@ -360,6 +372,7 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                                     className="link-input"
                                     value={`${window.location.origin}/love/${lovePageId}`}
                                     readOnly
+                                    aria-label="Your love page link"
                                 />
                             </div>
 
@@ -367,12 +380,14 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                                 <button
                                     className="link-btn copy-btn"
                                     onClick={handleCopyLink}
+                                    aria-label={copySuccess ? 'Link copied to clipboard' : 'Copy link to clipboard'}
                                 >
                                     {copySuccess ? '✓ Link Copied!' : '📋 Copy Link'}
                                 </button>
                                 <button
                                     className="link-btn open-btn"
                                     onClick={handleOpenLovePage}
+                                    aria-label="Open your love page in a new window"
                                 >
                                     💖 Open Love Page
                                 </button>
@@ -381,23 +396,22 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                     </section>
                 )}
 
-                {/* Error Message Display */}
                 {paymentError && !lovePageId && (
-                    <div className="error-message-container">
+                    <div className="error-message-container" role="alert" aria-live="assertive">
                         <div className="error-icon">⚠️</div>
                         <p className="error-message">{paymentError}</p>
                         <button
                             className="retry-btn"
                             onClick={() => setPaymentError(null)}
+                            aria-label="Dismiss error message"
                         >
                             ✕ Dismiss
                         </button>
                     </div>
                 )}
 
-                {/* Loading State Display */}
                 {(isCreatingOrder || isProcessingPayment) && !lovePageId && (
-                    <div className="loading-container">
+                    <div className="loading-container" role="status" aria-live="polite">
                         <div className="loading-spinner"></div>
                         <p className="loading-message">
                             {isCreatingOrder && 'Creating order...'}
@@ -406,13 +420,13 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                     </div>
                 )}
 
-                {/* Action Buttons - Hide after payment successful */}
                 {!lovePageId && (
                     <div className="preview-actions">
                         <button
                             className="action-btn edit-btn"
                             onClick={handleEdit}
                             disabled={isCreatingOrder || isProcessingPayment}
+                            aria-label="Edit your love journey details"
                         >
                             ← Edit
                         </button>
@@ -420,6 +434,7 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                             className="action-btn payment-btn"
                             onClick={handleProceedToPayment}
                             disabled={isCreatingOrder || isProcessingPayment}
+                            aria-label={isCreatingOrder || isProcessingPayment ? 'Payment in progress' : 'Proceed to payment'}
                         >
                             {isCreatingOrder && '⏳ Creating Order...'}
                             {isProcessingPayment && '⏳ Processing Payment...'}

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { validateField, validateForm, isFormValid, areAllFieldsFilled } from '../utils/formValidation';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { validateField, validateForm, isFormValid, areAllFieldsFilled, sanitizeInput } from '../utils/formValidation';
 import './LoveJourneyForm.css';
 
-const LoveJourneyForm = () => {
-    // Form state
+const LoveJourneyForm = ({ onComplete }) => {
     const [formValues, setFormValues] = useState({
         yourGender: '',
         yourName: '',
@@ -16,38 +15,53 @@ const LoveJourneyForm = () => {
         theme: ''
     });
 
-    // Error state
     const [errors, setErrors] = useState({});
-
-    // Touched fields (to show errors only after user interaction)
     const [touched, setTouched] = useState({});
-
-    // Form validity state
     const [isValid, setIsValid] = useState(false);
 
-    // Update form validity whenever form values or errors change
-    useEffect(() => {
-        const formErrors = validateForm(formValues);
-        const allFieldsFilled = areAllFieldsFilled(formValues);
-        const noErrors = isFormValid(formErrors);
-        setIsValid(allFieldsFilled && noErrors);
-    }, [formValues]);
+    const validationTimeoutRef = useRef(null);
+    const isMountedRef = useRef(true);
 
-    /**
-     * Handles input change for text fields
-     */
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+            if (validationTimeoutRef.current) {
+                clearTimeout(validationTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    const debouncedValidation = useCallback((values) => {
+        if (validationTimeoutRef.current) {
+            clearTimeout(validationTimeoutRef.current);
+        }
+
+        validationTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+                const formErrors = validateForm(values);
+                const allFieldsFilled = areAllFieldsFilled(values);
+                const noErrors = isFormValid(formErrors);
+                setIsValid(allFieldsFilled && noErrors);
+            }
+        }, 300);
+    }, []);
+
+    useEffect(() => {
+        debouncedValidation(formValues);
+    }, [formValues, debouncedValidation]);
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
+        const sanitizedValue = sanitizeInput(value);
 
-        // Update form values
         setFormValues(prev => ({
             ...prev,
-            [name]: value
+            [name]: sanitizedValue
         }));
 
-        // Validate field on change (only if already touched)
         if (touched[name]) {
-            const error = validateField(name, value, formValues);
+            const error = validateField(name, sanitizedValue, formValues);
             setErrors(prev => ({
                 ...prev,
                 [name]: error
@@ -55,9 +69,6 @@ const LoveJourneyForm = () => {
         }
     };
 
-    /**
-     * Handles select/dropdown change
-     */
     const handleSelectChange = (e) => {
         const { name, value } = e.target;
 
@@ -75,29 +86,29 @@ const LoveJourneyForm = () => {
         }
     };
 
-    /**
-     * Handles file input for photos
-     */
     const handlePhotoUpload = (e) => {
         const files = Array.from(e.target.files);
+        const updatedPhotos = [...formValues.photos, ...files];
 
         setFormValues(prev => ({
             ...prev,
-            photos: [...prev.photos, ...files]
+            photos: updatedPhotos
         }));
 
-        if (touched.photos) {
-            const error = validateField('photos', [...formValues.photos, ...files], formValues);
-            setErrors(prev => ({
+        const error = validateField('photos', updatedPhotos, formValues);
+        setErrors(prev => ({
+            ...prev,
+            photos: error
+        }));
+
+        if (!touched.photos) {
+            setTouched(prev => ({
                 ...prev,
-                photos: error
+                photos: true
             }));
         }
     };
 
-    /**
-     * Removes a photo from the list
-     */
     const handleRemovePhoto = (index) => {
         const updatedPhotos = formValues.photos.filter((_, i) => i !== index);
 
@@ -115,19 +126,14 @@ const LoveJourneyForm = () => {
         }
     };
 
-    /**
-     * Handles field blur (marks field as touched and validates)
-     */
     const handleBlur = (e) => {
         const { name } = e.target;
 
-        // Mark field as touched
         setTouched(prev => ({
             ...prev,
             [name]: true
         }));
 
-        // Validate field
         const error = validateField(name, formValues[name], formValues);
         setErrors(prev => ({
             ...prev,
@@ -135,27 +141,41 @@ const LoveJourneyForm = () => {
         }));
     };
 
-    /**
-     * Handles form submission
-     */
+    const resetForm = () => {
+        setFormValues({
+            yourGender: '',
+            yourName: '',
+            partnerGender: '',
+            partnerName: '',
+            firstMeeting: '',
+            favoriteMemory: '',
+            message: '',
+            photos: [],
+            theme: ''
+        });
+        setErrors({});
+        setTouched({});
+        setIsValid(false);
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        // Mark all fields as touched
         const allTouched = Object.keys(formValues).reduce((acc, key) => {
             acc[key] = true;
             return acc;
         }, {});
         setTouched(allTouched);
 
-        // Validate all fields
         const formErrors = validateForm(formValues);
         setErrors(formErrors);
 
-        // If form is valid, proceed
         if (isFormValid(formErrors)) {
-            console.log('Form is valid! Proceeding to preview...', formValues);
-            // TODO: Navigate to preview page or next step
+            if (onComplete) {
+                onComplete(formValues);
+            } else {
+                console.log('Form is valid! Proceeding to preview...', formValues);
+            }
         } else {
             console.log('Form has errors:', formErrors);
         }
@@ -170,7 +190,6 @@ const LoveJourneyForm = () => {
 
             <form onSubmit={handleSubmit} className="love-journey-form" noValidate>
 
-                {/* Your Gender */}
                 <div className="form-group">
                     <label htmlFor="yourGender">
                         Your Gender <span className="required">*</span>
@@ -182,6 +201,9 @@ const LoveJourneyForm = () => {
                         onChange={handleSelectChange}
                         onBlur={handleBlur}
                         className={touched.yourGender && errors.yourGender ? 'error-field' : ''}
+                        aria-required="true"
+                        aria-invalid={touched.yourGender && errors.yourGender ? 'true' : 'false'}
+                        aria-describedby={touched.yourGender && errors.yourGender ? 'yourGender-error' : undefined}
                     >
                         <option value="">Select your gender</option>
                         <option value="male">Male</option>
@@ -190,11 +212,10 @@ const LoveJourneyForm = () => {
                         <option value="prefer-not-to-say">Prefer not to say</option>
                     </select>
                     {touched.yourGender && errors.yourGender && (
-                        <span className="error-message">{errors.yourGender}</span>
+                        <span className="error-message" id="yourGender-error" role="alert" aria-live="polite">{errors.yourGender}</span>
                     )}
                 </div>
 
-                {/* Your Name */}
                 <div className="form-group">
                     <label htmlFor="yourName">
                         Your Name <span className="required">*</span>
@@ -207,14 +228,17 @@ const LoveJourneyForm = () => {
                         onChange={handleInputChange}
                         onBlur={handleBlur}
                         placeholder="Enter your name"
+                        maxLength="100"
                         className={touched.yourName && errors.yourName ? 'error-field' : ''}
+                        aria-required="true"
+                        aria-invalid={touched.yourName && errors.yourName ? 'true' : 'false'}
+                        aria-describedby={touched.yourName && errors.yourName ? 'yourName-error' : undefined}
                     />
                     {touched.yourName && errors.yourName && (
-                        <span className="error-message">{errors.yourName}</span>
+                        <span className="error-message" id="yourName-error" role="alert" aria-live="polite">{errors.yourName}</span>
                     )}
                 </div>
 
-                {/* Partner's Gender */}
                 <div className="form-group">
                     <label htmlFor="partnerGender">
                         Partner's Gender <span className="required">*</span>
@@ -226,6 +250,9 @@ const LoveJourneyForm = () => {
                         onChange={handleSelectChange}
                         onBlur={handleBlur}
                         className={touched.partnerGender && errors.partnerGender ? 'error-field' : ''}
+                        aria-required="true"
+                        aria-invalid={touched.partnerGender && errors.partnerGender ? 'true' : 'false'}
+                        aria-describedby={touched.partnerGender && errors.partnerGender ? 'partnerGender-error' : undefined}
                     >
                         <option value="">Select partner's gender</option>
                         <option value="male">Male</option>
@@ -234,11 +261,10 @@ const LoveJourneyForm = () => {
                         <option value="prefer-not-to-say">Prefer not to say</option>
                     </select>
                     {touched.partnerGender && errors.partnerGender && (
-                        <span className="error-message">{errors.partnerGender}</span>
+                        <span className="error-message" id="partnerGender-error" role="alert" aria-live="polite">{errors.partnerGender}</span>
                     )}
                 </div>
 
-                {/* Partner's Name */}
                 <div className="form-group">
                     <label htmlFor="partnerName">
                         Partner's Name <span className="required">*</span>
@@ -251,14 +277,17 @@ const LoveJourneyForm = () => {
                         onChange={handleInputChange}
                         onBlur={handleBlur}
                         placeholder="Enter partner's name"
+                        maxLength="100"
                         className={touched.partnerName && errors.partnerName ? 'error-field' : ''}
+                        aria-required="true"
+                        aria-invalid={touched.partnerName && errors.partnerName ? 'true' : 'false'}
+                        aria-describedby={touched.partnerName && errors.partnerName ? 'partnerName-error' : undefined}
                     />
                     {touched.partnerName && errors.partnerName && (
-                        <span className="error-message">{errors.partnerName}</span>
+                        <span className="error-message" id="partnerName-error" role="alert" aria-live="polite">{errors.partnerName}</span>
                     )}
                 </div>
 
-                {/* First Meeting */}
                 <div className="form-group">
                     <label htmlFor="firstMeeting">
                         How Did You First Meet? <span className="required">*</span>
@@ -271,17 +300,20 @@ const LoveJourneyForm = () => {
                         onBlur={handleBlur}
                         placeholder="Tell us about your first meeting..."
                         rows="4"
+                        maxLength="2000"
                         className={touched.firstMeeting && errors.firstMeeting ? 'error-field' : ''}
+                        aria-required="true"
+                        aria-invalid={touched.firstMeeting && errors.firstMeeting ? 'true' : 'false'}
+                        aria-describedby={touched.firstMeeting && errors.firstMeeting ? 'firstMeeting-error' : undefined}
                     />
                     <div className="char-count">
-                        {formValues.firstMeeting.length} characters
+                        {formValues.firstMeeting.length} / 2000 characters
                     </div>
                     {touched.firstMeeting && errors.firstMeeting && (
-                        <span className="error-message">{errors.firstMeeting}</span>
+                        <span className="error-message" id="firstMeeting-error" role="alert" aria-live="polite">{errors.firstMeeting}</span>
                     )}
                 </div>
 
-                {/* Favorite Memory */}
                 <div className="form-group">
                     <label htmlFor="favoriteMemory">
                         Your Favorite Memory Together <span className="required">*</span>
@@ -294,17 +326,20 @@ const LoveJourneyForm = () => {
                         onBlur={handleBlur}
                         placeholder="Share your favorite memory..."
                         rows="4"
+                        maxLength="2000"
                         className={touched.favoriteMemory && errors.favoriteMemory ? 'error-field' : ''}
+                        aria-required="true"
+                        aria-invalid={touched.favoriteMemory && errors.favoriteMemory ? 'true' : 'false'}
+                        aria-describedby={touched.favoriteMemory && errors.favoriteMemory ? 'favoriteMemory-error' : undefined}
                     />
                     <div className="char-count">
-                        {formValues.favoriteMemory.length} characters
+                        {formValues.favoriteMemory.length} / 2000 characters
                     </div>
                     {touched.favoriteMemory && errors.favoriteMemory && (
-                        <span className="error-message">{errors.favoriteMemory}</span>
+                        <span className="error-message" id="favoriteMemory-error" role="alert" aria-live="polite">{errors.favoriteMemory}</span>
                     )}
                 </div>
 
-                {/* Message */}
                 <div className="form-group">
                     <label htmlFor="message">
                         Special Message <span className="required">*</span>
@@ -317,37 +352,44 @@ const LoveJourneyForm = () => {
                         onBlur={handleBlur}
                         placeholder="Write a special message..."
                         rows="4"
+                        maxLength="2000"
                         className={touched.message && errors.message ? 'error-field' : ''}
+                        aria-required="true"
+                        aria-invalid={touched.message && errors.message ? 'true' : 'false'}
+                        aria-describedby={touched.message && errors.message ? 'message-error' : undefined}
                     />
                     <div className="char-count">
-                        {formValues.message.length} characters
+                        {formValues.message.length} / 2000 characters
                     </div>
                     {touched.message && errors.message && (
-                        <span className="error-message">{errors.message}</span>
+                        <span className="error-message" id="message-error" role="alert" aria-live="polite">{errors.message}</span>
                     )}
                 </div>
 
-                {/* Photos */}
                 <div className="form-group">
                     <label htmlFor="photos">
                         Upload Photos <span className="required">*</span>
+                        <span className="file-hint"> (Max 5 photos, 5MB each)</span>
                     </label>
                     <div className="photo-upload-container">
                         <input
                             type="file"
                             id="photos"
                             name="photos"
-                            accept="image/*"
+                            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                             multiple
                             onChange={handlePhotoUpload}
                             onBlur={handleBlur}
                             className="file-input"
+                            aria-required="true"
+                            aria-invalid={touched.photos && errors.photos ? 'true' : 'false'}
+                            aria-describedby={touched.photos && errors.photos ? 'photos-error' : undefined}
                         />
                         <label htmlFor="photos" className="file-input-label">
                             Choose Photos
                         </label>
                         <span className="file-count">
-                            {formValues.photos.length} photo(s) selected
+                            {formValues.photos.length} / 5 photo(s) selected
                         </span>
                     </div>
 
@@ -360,7 +402,7 @@ const LoveJourneyForm = () => {
                                         type="button"
                                         onClick={() => handleRemovePhoto(index)}
                                         className="remove-photo-btn"
-                                        aria-label="Remove photo"
+                                        aria-label={`Remove ${photo.name}`}
                                     >
                                         ×
                                     </button>
@@ -370,11 +412,10 @@ const LoveJourneyForm = () => {
                     )}
 
                     {touched.photos && errors.photos && (
-                        <span className="error-message">{errors.photos}</span>
+                        <span className="error-message" id="photos-error" role="alert" aria-live="polite">{errors.photos}</span>
                     )}
                 </div>
 
-                {/* Theme */}
                 <div className="form-group">
                     <label htmlFor="theme">
                         Choose a Theme <span className="required">*</span>
@@ -386,6 +427,9 @@ const LoveJourneyForm = () => {
                         onChange={handleSelectChange}
                         onBlur={handleBlur}
                         className={touched.theme && errors.theme ? 'error-field' : ''}
+                        aria-required="true"
+                        aria-invalid={touched.theme && errors.theme ? 'true' : 'false'}
+                        aria-describedby={touched.theme && errors.theme ? 'theme-error' : undefined}
                     >
                         <option value="">Select a theme</option>
                         <option value="romantic">Romantic</option>
@@ -395,21 +439,21 @@ const LoveJourneyForm = () => {
                         <option value="modern">Modern</option>
                     </select>
                     {touched.theme && errors.theme && (
-                        <span className="error-message">{errors.theme}</span>
+                        <span className="error-message" id="theme-error" role="alert" aria-live="polite">{errors.theme}</span>
                     )}
                 </div>
 
-                {/* Submit Button */}
                 <div className="form-actions">
                     <button
                         type="submit"
                         className="submit-btn"
                         disabled={!isValid}
+                        aria-label={isValid ? 'Continue to preview' : 'Fill in all required fields to continue'}
                     >
                         Continue / Preview
                     </button>
                     {!isValid && (
-                        <p className="form-hint">
+                        <p className="form-hint" role="status" aria-live="polite">
                             Please fill in all required fields correctly to continue
                         </p>
                     )}
