@@ -387,7 +387,7 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                                 <button
                                     className="link-btn open-btn"
                                     onClick={handleOpenLovePage}
-                                    aria-label="Open your love page in a new window"
+                                    aria-label="Open your love page"
                                 >
                                     💖 Open Love Page
                                 </button>
