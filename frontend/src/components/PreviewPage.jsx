@@ -4,6 +4,7 @@ import './PreviewPage.css';
 const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [showMessage, setShowMessage] = useState(false);
+    const [lovePageId, setLovePageId] = useState(null);
 
     const {
         yourName,
@@ -86,14 +87,56 @@ const PreviewPage = ({ formData, onEdit, onProceedToPayment }) => {
                 theme: {
                     color: "#FF1744" // Romantic pink-red
                 },
-                handler: function (response) {
-                    // Success callback
+                handler: async function (response) {
+                    // Success callback - Payment captured by Razorpay
                     console.log('Payment successful:', response);
-                    console.log('Razorpay Payment ID:', response.razorpay_payment_id);
-                    console.log('Razorpay Order ID:', response.razorpay_order_id);
-                    console.log('Razorpay Signature:', response.razorpay_signature);
 
-                    // TODO: Call verify API in next iteration
+                    try {
+                        // Step 1: Verify payment signature on backend
+                        const verifyResponse = await fetch('http://localhost:5000/api/payment/verify', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature
+                            })
+                        });
+
+                        if (!verifyResponse.ok) {
+                            throw new Error('Payment verification failed');
+                        }
+
+                        const verifyData = await verifyResponse.json();
+                        console.log('Payment verified:', verifyData);
+
+                        // Step 2: Create love page after successful verification
+                        const createLovePageResponse = await fetch('http://localhost:5000/api/love/create', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(formData)
+                        });
+
+                        if (!createLovePageResponse.ok) {
+                            throw new Error('Failed to create love page');
+                        }
+
+                        const lovePageData = await createLovePageResponse.json();
+                        console.log('Love page created:', lovePageData);
+
+                        // Step 3: Store love page ID
+                        setLovePageId(lovePageData.id);
+
+                        alert(`Success! Your Love Journey has been created! ID: ${lovePageData.id}`);
+
+                    } catch (error) {
+                        console.error('Error in payment verification or love page creation:', error);
+                        alert('Payment was successful but we encountered an error. Please contact support with your payment ID: ' + response.razorpay_payment_id);
+                    }
                 },
                 modal: {
                     ondismiss: function () {
