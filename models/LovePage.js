@@ -1,29 +1,21 @@
 const mongoose = require("mongoose");
 
 const lovePageSchema = new mongoose.Schema({
-    // 🔗 Shareable slug
+    // 🔗 Technical Fields
     slug: { type: String, required: true, unique: true },
-
-    // 💳 Payment state
+    pageType: { type: String, enum: ['confession', 'relationship'], required: true },
     isPaid: { type: Boolean, default: false },
-    paymentMeta: {
-        razorpay_order_id: String,
-        razorpay_payment_id: String
-    },
+    paymentId: { type: String },
+    expiresAt: { type: Date, required: true },
 
-    // 👤 User details
-    yourGender: { type: String, required: true },
-    yourName: { type: String, required: true },
-
-    partnerGender: { type: String, required: true },
+    // 🟢 COMMON IDENTITY FIELDS
+    yourName: { type: String, default: "Admirer" },
     partnerName: { type: String, required: true },
+    yourGender: { type: String, default: "unknown" },
+    partnerGender: { type: String, default: "unknown" },
 
-    // 💌 Memories
-    firstMeeting: { type: String, required: true },
-    favoriteMemory: { type: String, required: true },
-    message: { type: String, required: true },
-
-    // 🖼️ Media (IMPORTANT CHANGE)
+    // 🎨 Theme & Media
+    tone: { type: String }, // "Romantic", "Playful", "Deep", "Cute"
     photos: [
         {
             url: String,
@@ -31,14 +23,25 @@ const lovePageSchema = new mongoose.Schema({
         }
     ],
 
-    music: { type: String, default: null },
+    // 🔵 RELATIONSHIP SPECIFIC FIELDS (From LoveForm.jsx)
+    relationshipStatus: { type: String }, // "Dating", "Married", etc.
+    showYourName: { type: Boolean, default: true },
+    feelings: [{ type: String }], // ["Safe", "Loved", "Happy"]
 
-    // 🎨 Theme
-    theme: { type: String, default: "default" },
+    memoryEnabled: { type: Boolean, default: false },
+    memoryType: { type: String }, // "First meeting", "First trip"
+    memoryText: { type: String }, // The story of the memory
 
-    // ⏳ Timestamps
-    createdAt: { type: Date, default: Date.now },
-    expiresAt: { type: Date }
-});
+    appreciation: { type: String }, // "Their Kindness"
+    appreciationCustom: { type: String }, // Custom text
+    future: { type: String }, // "Traveling the world"
+
+    // 🟠 CONFESSION SPECIFIC FIELDS (From ConfessionForm.jsx)
+    feelingsStart: { type: String }, // "When did your feelings begin?"
+    admireMost: { type: String },    // "What do you admire most?"
+    nervousLevel: { type: String },  // "How nervous are you?"
+    theQuestion: { type: String },   // "Will you be mine?"
+
+}, { timestamps: true });
 
 module.exports = mongoose.model("LovePage", lovePageSchema);

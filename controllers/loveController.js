@@ -2,10 +2,10 @@ const mongoose = require("mongoose");
 const LovePage = require("../models/LovePage");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
-const { nanoid } = require("nanoid");
-
+const { nanoid } = require("nanoid"); // Ensure nanoid@3.3.4 is installed
 
 // ❤️ UPLOAD IMAGES TO CLOUDINARY
+// Used by PreviewPage.jsx before payment
 exports.uploadImages = async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
@@ -15,6 +15,7 @@ exports.uploadImages = async (req, res) => {
             });
         }
 
+        // Helper to buffer stream to Cloudinary
         const uploadToCloudinary = (buffer) => {
             return new Promise((resolve, reject) => {
                 const uploadStream = cloudinary.uploader.upload_stream(
@@ -30,16 +31,18 @@ exports.uploadImages = async (req, res) => {
 
         const uploadedImages = [];
 
+        // Upload files one by one
         for (const file of req.files) {
             const result = await uploadToCloudinary(file.buffer);
 
-            // 🔥 STORE BOTH URL + publicId (IMPORTANT)
+            // 🔥 STORE BOTH URL + publicId (Crucial for optimizations later)
             uploadedImages.push({
                 url: result.secure_url,
                 publicId: result.public_id
             });
         }
 
+        // Return the array of URLs to the frontend
         res.json({
             success: true,
             photos: uploadedImages
@@ -54,26 +57,24 @@ exports.uploadImages = async (req, res) => {
     }
 };
 
-
-
-// ❤️ CREATE LOVE PAGE
+// ❤️ CREATE LOVE PAGE (Free/Manual Route)
+// Note: Your main flow uses paymentController.verifyPayment, but this is a backup.
 exports.createLovePage = async (req, res) => {
     try {
         const {
-            yourGender,
-            yourName,
-            partnerGender,
-            partnerName,
-            firstMeeting,
-            favoriteMemory,
-            message,
-            photos = [],
-            music = null,
-            theme = "default"
+            yourGender, yourName, partnerGender, partnerName,
+            firstMeeting, favoriteMemory, message, photos = [],
+            theme = "default", pageType = "relationship",
+            // Add other schema fields if using this route manually
         } = req.body;
 
         // 🔗 Generate short, shareable slug
-        const slug = nanoid(7);
+        let slug;
+        let exists = true;
+        while (exists) {
+            slug = nanoid(7);
+            exists = await LovePage.exists({ slug });
+        }
 
         // ⏳ Expiry (7 days)
         const expiresAt = new Date();
@@ -81,17 +82,11 @@ exports.createLovePage = async (req, res) => {
 
         const newPage = await LovePage.create({
             slug,
-            yourGender,
-            yourName,
-            partnerGender,
-            partnerName,
-            firstMeeting,
-            favoriteMemory,
-            message,
-            photos, // contains { url, publicId }
-            music,
-            theme,
-            expiresAt
+            yourGender, yourName, partnerGender, partnerName,
+            firstMeeting, favoriteMemory, message,
+            photos, theme, pageType,
+            expiresAt,
+            isPaid: false // Manual creation assumes unpaid/test
         });
 
         res.status(201).json({
@@ -109,9 +104,8 @@ exports.createLovePage = async (req, res) => {
     }
 };
 
-
-
 // 💖 GET LOVE PAGE BY SLUG
+// Used by FinalLovePage.jsx to load the story
 exports.getLovePageBySlug = async (req, res) => {
     try {
         const { slug } = req.params;
@@ -125,10 +119,9 @@ exports.getLovePageBySlug = async (req, res) => {
             });
         }
 
-        res.json({
-            success: true,
-            data: page
-        });
+        // ⚠️ CRITICAL: Return the page object DIRECTLY.
+        // If we wrapped it in { data: page }, your frontend code (data.partnerName) would break.
+        res.json(page);
 
     } catch (error) {
         console.error("GET ERROR:", error);
